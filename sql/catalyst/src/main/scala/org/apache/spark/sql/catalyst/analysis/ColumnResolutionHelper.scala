@@ -256,6 +256,12 @@ trait ColumnResolutionHelper extends Logging {
     case _ => e
   }
 
+  private val toLowerCaseOrNot = if (conf.caseSensitiveAnalysis) {
+    (name: String) => name
+  } else {
+    (name: String) => name.toLowerCase(Locale.ROOT)
+  }
+
   protected def resolveLateralColumnAlias(selectList: Seq[Expression]): Seq[Expression] = {
     if (!conf.getConf(SQLConf.LATERAL_COLUMN_ALIAS_IMPLICIT_ENABLED)) return selectList
 
@@ -277,8 +283,8 @@ trait ColumnResolutionHelper extends Logging {
         case u: UnresolvedAttribute =>
           // Lateral column alias does not have qualifiers. We always use the first name part to
           // look up lateral column aliases.
-          val lowerCasedName = u.nameParts.head.toLowerCase(Locale.ROOT)
-          aliasMap.get(lowerCasedName).map {
+          val aliasName = toLowerCaseOrNot(u.nameParts.head)
+          aliasMap.get(aliasName).map {
             case scala.util.Left(alias) =>
               if (alias.resolved) {
                 val resolvedAttr = resolveExpressionByPlanOutput(
@@ -304,14 +310,14 @@ trait ColumnResolutionHelper extends Logging {
     selectList.map {
       case a: Alias =>
         val result = resolve(a)
-        val lowerCasedName = a.name.toLowerCase(Locale.ROOT)
-        aliasMap.get(lowerCasedName) match {
+        val aliasName = toLowerCaseOrNot(a.name)
+        aliasMap.get(aliasName) match {
           case Some(scala.util.Left(_)) =>
-            aliasMap(lowerCasedName) = scala.util.Right(2)
+            aliasMap(aliasName) = scala.util.Right(2)
           case Some(scala.util.Right(count)) =>
-            aliasMap(lowerCasedName) = scala.util.Right(count + 1)
+            aliasMap(aliasName) = scala.util.Right(count + 1)
           case None =>
-            aliasMap += lowerCasedName -> scala.util.Left(a)
+            aliasMap += aliasName -> scala.util.Left(a)
         }
         result
       case other => resolve(other)
